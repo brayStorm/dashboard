@@ -18,16 +18,32 @@ import { MetadataRefresher } from "./device-metadata-refresher";
 import { ESPHomeSearch } from "../components/esphome-search";
 import { fireEvent } from "../util/fire-event";
 
-// Enhanced UI Components
-import { 
-  ESPHomeDataTable, 
-  ESPHomeStatusIndicator,
-  ESPHomeButton,
-  ESPHomeActionMenu,
-  type DataTableColumn,
-  type DataTableRow,
-  type MenuItem 
-} from "@esphome-webui/index";
+// Enhanced UI Components - import directly from submodule
+import "../../esphome-webui-components/src/esphome-data-table.js";
+import "../../esphome-webui-components/src/esphome-status-indicator.js"; 
+import "../../esphome-webui-components/src/esphome-button.js";
+import "../../esphome-webui-components/src/esphome-action-menu.js";
+
+// Type definitions for enhanced components
+interface DataTableColumn {
+  key: string;
+  title: string;
+  sortable?: boolean;
+  width?: string;
+  align?: "left" | "center" | "right";
+  template?: (value: any, row: any) => any;
+}
+
+interface DataTableRow {
+  [key: string]: any;
+}
+
+interface MenuItem {
+  label: string;
+  action: string;
+  divider?: boolean;
+  destructive?: boolean;
+}
 
 @customElement("esphome-devices-list")
 class ESPHomeDevicesList extends LitElement {
