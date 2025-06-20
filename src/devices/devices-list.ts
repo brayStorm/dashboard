@@ -18,12 +18,26 @@ import { MetadataRefresher } from "./device-metadata-refresher";
 import { ESPHomeSearch } from "../components/esphome-search";
 import { fireEvent } from "../util/fire-event";
 
+// Enhanced UI Components
+import { 
+  ESPHomeDataTable, 
+  ESPHomeStatusIndicator,
+  ESPHomeButton,
+  ESPHomeActionMenu,
+  type DataTableColumn,
+  type DataTableRow,
+  type MenuItem 
+} from "@esphome-webui/index";
+
 @customElement("esphome-devices-list")
 class ESPHomeDevicesList extends LitElement {
   @property() public showDiscoveredDevices = false;
 
   @state() private _devices?: Array<ImportableDevice | ConfiguredDevice>;
   @state() private _onlineStatus: Record<string, boolean> = {};
+  @state() private _viewMode: "cards" | "table" = "cards";
+  @state() private _sortBy: string = "name";
+  @state() private _sortDirection: "asc" | "desc" = "asc";
 
   @query("esphome-search") private _search!: ESPHomeSearch;
 
@@ -101,7 +115,23 @@ class ESPHomeDevicesList extends LitElement {
     }
 
     return html`
-      <esphome-search @input=${() => this.requestUpdate()}></esphome-search>
+      <div class="header-controls">
+        <esphome-search @input=${() => this.requestUpdate()}></esphome-search>
+        <div class="view-controls">
+          <mwc-button
+            label="Cards"
+            ?outlined=${this._viewMode !== "cards"}
+            ?raised=${this._viewMode === "cards"}
+            @click=${() => this._setViewMode("cards")}
+          ></mwc-button>
+          <mwc-button
+            label="Table"
+            ?outlined=${this._viewMode !== "table"}
+            ?raised=${this._viewMode === "table"}
+            @click=${() => this._setViewMode("table")}
+          ></mwc-button>
+        </div>
+      </div>
       ${!this.showDiscoveredDevices && discoveredCount > 0
         ? html`
             <div class="show-discovered-bar">
@@ -116,8 +146,202 @@ class ESPHomeDevicesList extends LitElement {
             </div>
           `
         : nothing}
-      <div class="${htmlClass}">${htmlDevices}</div>
+      ${this._viewMode === "table" 
+        ? this._renderTableView(filtered)
+        : html`<div class="${htmlClass}">${htmlDevices}</div>`}
     `;
+  }
+
+  private _setViewMode(mode: "cards" | "table") {
+    this._viewMode = mode;
+    localStorage.setItem("esphome.devices.viewMode", mode);
+  }
+
+  private _renderTableView(devices: Array<ImportableDevice | ConfiguredDevice>) {
+    if (devices.length === 0) {
+      return html`
+        <div class="no-result-container">
+          <h5>No devices found</h5>
+          <p>Adjust your search criteria.</p>
+        </div>
+      `;
+    }
+
+    const columns: DataTableColumn[] = [
+      {
+        key: "status",
+        title: "",
+        width: "40px",
+        align: "center",
+        template: (_, row) => html`
+          <esphome-status-indicator 
+            status=${this._getDeviceStatus(row)}
+          ></esphome-status-indicator>
+        `
+      },
+      {
+        key: "name",
+        title: "Device Name",
+        sortable: true,
+        template: (value, row) => html`
+          <div class="device-name">
+            <strong>${value}</strong>
+            ${row.friendly_name ? html`<br><small>${row.friendly_name}</small>` : nothing}
+          </div>
+        `
+      },
+      {
+        key: "statusText",
+        title: "Status",
+        width: "120px",
+        sortable: true,
+        template: (_, row) => html`
+          <div class="status-cell">
+            <esphome-status-indicator 
+              status=${this._getDeviceStatus(row)}
+              show-text
+            ></esphome-status-indicator>
+          </div>
+        `
+      },
+      {
+        key: "ip",
+        title: "IP Address",
+        width: "140px",
+        template: (_, row) => row.ip || "—"
+      },
+      {
+        key: "configuration",
+        title: "Configuration",
+        width: "200px",
+        template: (value) => value ? value.replace(/\.ya?ml$/, "") : "—"
+      },
+      {
+        key: "actions",
+        title: "Actions",
+        width: "200px",
+        align: "right",
+        template: (_, row) => this._renderTableActions(row)
+      }
+    ];
+
+    const tableData: DataTableRow[] = devices.map(device => ({
+      ...device,
+      statusText: this._getDeviceStatus(device),
+      ip: this._isImportable(device) ? "—" : (device as ConfiguredDevice).ip
+    }));
+
+    return html`
+      <div class="table-container">
+        <esphome-data-table
+          .columns=${columns}
+          .data=${tableData}
+          .filter=${this._search?.value || ""}
+          clickable
+          @row-click=${this._handleTableRowClick}
+          @sorting-changed=${this._handleTableSort}
+        ></esphome-data-table>
+      </div>
+    `;
+  }
+
+  private _getDeviceStatus(device: ImportableDevice | ConfiguredDevice): string {
+    if (this._isImportable(device)) {
+      return "discovered";
+    }
+    const configured = device as ConfiguredDevice;
+    const isOnline = this._onlineStatus[configured.configuration];
+    return isOnline ? "online" : "offline";
+  }
+
+  private _renderTableActions(device: ImportableDevice | ConfiguredDevice) {
+    if (this._isImportable(device)) {
+      const importable = device as ImportableDevice;
+      return html`
+        <div class="table-actions">
+          <esphome-button variant="primary" @click=${() => this._handleAdopt(importable)}>
+            Adopt
+          </esphome-button>
+        </div>
+      `;
+    }
+
+    const configured = device as ConfiguredDevice;
+    const menuItems: MenuItem[] = [
+      { label: "Edit", action: "edit" },
+      { label: "Logs", action: "logs" },
+      { label: "Visit", action: "visit" },
+      { label: "Validate", action: "validate" },
+      { label: "Install", action: "install" },
+      { divider: true },
+      { label: "Delete", action: "delete", destructive: true }
+    ];
+
+    return html`
+      <div class="table-actions">
+        <esphome-button variant="secondary" @click=${() => this._handleEdit(configured)}>
+          Edit
+        </esphome-button>
+        <esphome-button variant="secondary" @click=${() => this._handleLogs(configured)}>
+          Logs
+        </esphome-button>
+        <esphome-action-menu
+          .items=${menuItems}
+          @menu-action=${(e: CustomEvent) => this._handleMenuAction(e, configured)}
+        ></esphome-action-menu>
+      </div>
+    `;
+  }
+
+  private _handleTableRowClick(e: CustomEvent) {
+    const device = e.detail.row;
+    if (!this._isImportable(device)) {
+      this._handleEdit(device as ConfiguredDevice);
+    }
+  }
+
+  private _handleTableSort(e: CustomEvent) {
+    this._sortBy = e.detail.column;
+    this._sortDirection = e.detail.direction;
+    localStorage.setItem("esphome.devices.sortBy", this._sortBy);
+    localStorage.setItem("esphome.devices.sortDirection", this._sortDirection);
+  }
+
+  private _handleAdopt(device: ImportableDevice) {
+    // Existing adopt logic
+    fireEvent(this, "adopt-device", { device });
+  }
+
+  private _handleEdit(device: ConfiguredDevice) {
+    // Existing edit logic
+    fireEvent(this, "edit-device", { device });
+  }
+
+  private _handleLogs(device: ConfiguredDevice) {
+    // Existing logs logic
+    fireEvent(this, "show-logs", { device });
+  }
+
+  private _handleMenuAction(e: CustomEvent, device: ConfiguredDevice) {
+    const action = e.detail.action;
+    switch (action) {
+      case "edit":
+        this._handleEdit(device);
+        break;
+      case "logs":
+        this._handleLogs(device);
+        break;
+      case "visit":
+        if (device.ip) {
+          window.open(`http://${device.ip}`, "_blank");
+        }
+        break;
+      case "delete":
+        fireEvent(this, "delete-device", { device });
+        break;
+      default:
+        fireEvent(this, "device-action", { action, device });
+    }
   }
 
   private _filter(item: ImportableDevice | ConfiguredDevice): boolean {
@@ -218,6 +442,69 @@ class ESPHomeDevicesList extends LitElement {
       border-top: 1px solid var(--divider-color);
       color: var(--mdc-theme-on-primary);
     }
+    
+    .header-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 16px;
+    }
+    
+    .view-controls {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .table-container {
+      margin: 20px auto;
+      width: 95%;
+      max-width: 1920px;
+    }
+    
+    .device-name strong {
+      color: var(--primary-text-color);
+    }
+    
+    .device-name small {
+      color: var(--secondary-text-color);
+      font-size: 0.9em;
+    }
+    
+    .status-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .table-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    
+    @media only screen and (max-width: 768px) {
+      .header-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+      
+      .view-controls {
+        justify-content: center;
+      }
+      
+      .table-container {
+        width: 100%;
+        margin: 10px 0;
+      }
+      
+      .table-actions {
+        flex-direction: column;
+        gap: 4px;
+      }
+    }
   `;
 
   private async _updateDevices() {
@@ -235,6 +522,22 @@ class ESPHomeDevicesList extends LitElement {
 
   public connectedCallback() {
     super.connectedCallback();
+    
+    // Load saved preferences
+    const savedViewMode = localStorage.getItem("esphome.devices.viewMode") as "cards" | "table";
+    if (savedViewMode) {
+      this._viewMode = savedViewMode;
+    }
+    
+    const savedSortBy = localStorage.getItem("esphome.devices.sortBy");
+    if (savedSortBy) {
+      this._sortBy = savedSortBy;
+    }
+    
+    const savedSortDirection = localStorage.getItem("esphome.devices.sortDirection") as "asc" | "desc";
+    if (savedSortDirection) {
+      this._sortDirection = savedSortDirection;
+    }
 
     this._devicesUnsub = subscribeDevices(async (devices) => {
       if (!devices) return;

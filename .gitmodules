@@ -1,4 +1,4 @@
 [submodule "esphome-webui-components"]
 	path = esphome-webui-components
-	url = https://github.com/esphome/esphome-webui-components.git
+	url = https://github.com/brayStorm/esphome-webui-components.git
 	branch = main
