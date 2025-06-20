@@ -5,6 +5,18 @@ set -e
 
 cd "$(dirname "$0")/.."
 
+# Check if webui components submodule exists and build if needed
+if [ -d "esphome-webui-components" ] && [ -f "esphome-webui-components/package.json" ]; then
+  echo "Building webui components..."
+  cd esphome-webui-components
+  if [ ! -d "node_modules" ]; then
+    npm install
+  fi
+  npm run build
+  cd ..
+  echo "Webui components built successfully"
+fi
+
 rm -rf esphome_dashboard
 
 cp -r raw_package esphome_dashboard

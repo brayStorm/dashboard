@@ -13,6 +13,13 @@
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "ignoreDeprecations": "5.0",
-    "importHelpers": true
-  }
+    "importHelpers": true,
+    "paths": {
+      "@esphome-webui/*": ["esphome-webui-components/src/*"]
+    }
+  },
+  "include": [
+    "src/**/*",
+    "esphome-webui-components/src/**/*"
+  ]
 }
