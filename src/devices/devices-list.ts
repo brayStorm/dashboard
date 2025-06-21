@@ -214,7 +214,7 @@ class ESPHomeDevicesList extends LitElement {
       {
         key: "icon",
         title: "",
-        width: "40px",
+        width: "48px",
         align: "center",
         template: (_, row) => this._renderDeviceIcon(row)
       },
@@ -222,6 +222,7 @@ class ESPHomeDevicesList extends LitElement {
         key: "name",
         title: "Name",
         sortable: true,
+        width: "30%",
         template: (value, row) => html`
           <div class="device-info">
             <div class="device-name">${value}</div>
@@ -234,7 +235,7 @@ class ESPHomeDevicesList extends LitElement {
       {
         key: "status",
         title: "Status", 
-        width: "180px",
+        width: "200px",
         sortable: true,
         template: (_, row) => {
           const status = this._getDeviceStatus(row);
@@ -261,7 +262,7 @@ class ESPHomeDevicesList extends LitElement {
       {
         key: "configuration",
         title: "File name",
-        width: "280px",
+        width: "30%",
         template: (value, row) => {
           if (this._isImportable(row)) {
             return html`<span class="filename">${row.project_name || "—"}</span>`;
@@ -273,7 +274,7 @@ class ESPHomeDevicesList extends LitElement {
       {
         key: "actions",
         title: "",
-        width: "120px",
+        width: "150px",
         align: "right",
         template: (_, row) => this._renderTableActions(row)
       }
@@ -541,16 +542,19 @@ class ESPHomeDevicesList extends LitElement {
 
   static styles = css`
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
       width: 100%;
       height: 100%;
       background: #f8f9fa;
+      overflow: hidden;
     }
 
     .device-builder-container {
       display: flex;
       flex-direction: column;
       height: 100%;
+      overflow: hidden;
     }
 
     /* Header Styles */
@@ -562,6 +566,8 @@ class ESPHomeDevicesList extends LitElement {
       background: white;
       border-bottom: 1px solid #e0e0e0;
       height: 56px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      z-index: 10;
     }
 
     .header-left {
@@ -612,6 +618,8 @@ class ESPHomeDevicesList extends LitElement {
       background: white;
       border-bottom: 1px solid #e0e0e0;
       gap: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      z-index: 9;
     }
 
     .toolbar-left,
@@ -714,7 +722,9 @@ class ESPHomeDevicesList extends LitElement {
     .table-layout {
       flex: 1;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 24px;
+      min-height: 0; /* Important for Firefox */
     }
 
     .device-group {
@@ -723,6 +733,14 @@ class ESPHomeDevicesList extends LitElement {
       border-radius: 8px;
       overflow: hidden;
       box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      max-width: 100%;
+    }
+    
+    /* Ensure table doesn't overflow */
+    esphome-data-table {
+      display: block;
+      width: 100%;
+      overflow-x: auto;
     }
 
     .group-header {
@@ -842,6 +860,9 @@ class ESPHomeDevicesList extends LitElement {
       grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
       gap: 24px;
       padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
     }
 
     /* No results */
@@ -893,6 +914,18 @@ class ESPHomeDevicesList extends LitElement {
 
       .table-layout {
         padding: 16px;
+      }
+      
+      /* Make table scrollable on mobile */
+      .device-group {
+        overflow-x: auto;
+      }
+      
+      /* Hide some columns on very small screens */
+      @media only screen and (max-width: 480px) {
+        .filename {
+          display: none;
+        }
       }
     }
   `;
