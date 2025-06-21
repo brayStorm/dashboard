@@ -183,81 +183,128 @@ class ESPHomeDevicesList extends LitElement {
       `;
     }
 
+    // Group devices by type (configured vs discovered)
+    const configuredDevices = devices.filter(d => !this._isImportable(d));
+    const discoveredDevices = devices.filter(d => this._isImportable(d));
+
     const columns: DataTableColumn[] = [
       {
-        key: "status",
+        key: "icon",
         title: "",
-        width: "40px",
+        width: "48px",
         align: "center",
+        template: (_, row) => this._renderDeviceIcon(row)
+      },
+      {
+        key: "name",
+        title: "Name",
+        sortable: true,
+        template: (value, row) => html`
+          <div class="device-info">
+            <div class="device-name">${value}</div>
+            ${row.friendly_name ? html`<div class="device-subtitle">${row.friendly_name}</div>` : nothing}
+          </div>
+        `
+      },
+      {
+        key: "status",
+        title: "Status", 
+        width: "160px",
+        sortable: true,
         template: (_, row) => html`
           <esphome-status-indicator 
             status=${this._getDeviceStatus(row)}
+            show-text
           ></esphome-status-indicator>
         `
       },
       {
-        key: "name",
-        title: "Device Name",
-        sortable: true,
-        template: (value, row) => html`
-          <div class="device-name">
-            <strong>${value}</strong>
-            ${row.friendly_name ? html`<br><small>${row.friendly_name}</small>` : nothing}
-          </div>
-        `
-      },
-      {
-        key: "statusText",
-        title: "Status",
-        width: "120px",
-        sortable: true,
-        template: (_, row) => html`
-          <div class="status-cell">
-            <esphome-status-indicator 
-              status=${this._getDeviceStatus(row)}
-              show-text
-            ></esphome-status-indicator>
-          </div>
-        `
-      },
-      {
-        key: "ip",
-        title: "IP Address",
-        width: "140px",
-        template: (_, row) => row.ip || "—"
-      },
-      {
         key: "configuration",
-        title: "Configuration",
+        title: "File name",
         width: "200px",
-        template: (value) => value ? value.replace(/\.ya?ml$/, "") : "—"
+        template: (value, row) => this._isImportable(row) 
+          ? row.project_name || "—"
+          : (value ? value.replace(/\.ya?ml$/, "") : "—")
       },
       {
         key: "actions",
-        title: "Actions",
-        width: "200px",
+        title: "",
+        width: "120px",
         align: "right",
         template: (_, row) => this._renderTableActions(row)
       }
     ];
 
-    const tableData: DataTableRow[] = devices.map(device => ({
-      ...device,
-      statusText: this._getDeviceStatus(device),
-      ip: this._isImportable(device) ? "—" : (device as ConfiguredDevice).ip
-    }));
-
     return html`
-      <div class="table-container">
-        <esphome-data-table
-          .columns=${columns}
-          .data=${tableData}
-          .filter=${this._search?.value || ""}
-          clickable
-          @row-click=${this._handleTableRowClick}
-          @sorting-changed=${this._handleTableSort}
-        ></esphome-data-table>
+      <div class="table-layout">
+        ${configuredDevices.length > 0 ? html`
+          <div class="device-group">
+            <div class="group-header">
+              <h3 class="group-title">Your devices</h3>
+            </div>
+            <esphome-data-table
+              .columns=${columns}
+              .data=${configuredDevices}
+              .filter=${this._search?.value || ""}
+              @row-click=${this._handleTableRowClick}
+              @sorting-changed=${this._handleTableSort}
+            ></esphome-data-table>
+          </div>
+        ` : nothing}
+        
+        ${discoveredDevices.length > 0 ? html`
+          <div class="device-group">
+            <div class="group-header">
+              <h3 class="group-title">Discovered</h3>
+            </div>
+            <esphome-data-table
+              .columns=${columns}
+              .data=${discoveredDevices}
+              .filter=${this._search?.value || ""}
+              @row-click=${this._handleTableRowClick}
+              @sorting-changed=${this._handleTableSort}
+            ></esphome-data-table>
+          </div>
+        ` : nothing}
       </div>
+    `;
+  }
+
+  private _renderDeviceIcon(device: ImportableDevice | ConfiguredDevice) {
+    // Device type icons based on name patterns
+    const name = device.name.toLowerCase();
+    
+    if (name.includes('environmental') || name.includes('sensor')) {
+      return html`
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <rect x="4" y="4" width="16" height="16" rx="2" stroke="#5f6368" stroke-width="2" fill="none"/>
+          <circle cx="12" cy="12" r="3" stroke="#5f6368" stroke-width="2" fill="none"/>
+        </svg>
+      `;
+    }
+    
+    if (name.includes('presence') || name.includes('motion')) {
+      return html`
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 13.5V22H13V15.5L11 14L9 16V22H7V14L12 8L21 9Z" fill="#5f6368"/>
+        </svg>
+      `;
+    }
+    
+    if (name.includes('voice') || name.includes('assistant')) {
+      return html`
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h4v1h-7v2h6c1.66 0 3-1.34 3-3V10c0-4.97-4.03-9-9-9z" fill="#5f6368"/>
+        </svg>
+      `;
+    }
+    
+    // Default device icon
+    return html`
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <rect x="2" y="4" width="20" height="16" rx="2" stroke="#5f6368" stroke-width="2" fill="none"/>
+        <circle cx="12" cy="12" r="2" fill="#5f6368"/>
+      </svg>
     `;
   }
 
@@ -275,36 +322,54 @@ class ESPHomeDevicesList extends LitElement {
       const importable = device as ImportableDevice;
       return html`
         <div class="table-actions">
-          <esphome-button variant="primary" @click=${() => this._handleAdopt(importable)}>
-            Adopt
-          </esphome-button>
+          <button class="action-button primary" @click=${() => this._handleAdopt(importable)}>
+            Take control
+          </button>
         </div>
       `;
     }
 
     const configured = device as ConfiguredDevice;
-    const menuItems: MenuItem[] = [
-      { label: "Edit", action: "edit" },
-      { label: "Logs", action: "logs" },
-      { label: "Visit", action: "visit" },
-      { label: "Validate", action: "validate" },
-      { label: "Install", action: "install" },
-      { divider: true },
-      { label: "Delete", action: "delete", destructive: true }
-    ];
-
+    
     return html`
       <div class="table-actions">
-        <esphome-button variant="secondary" @click=${() => this._handleEdit(configured)}>
-          Edit
-        </esphome-button>
-        <esphome-button variant="secondary" @click=${() => this._handleLogs(configured)}>
-          Logs
-        </esphome-button>
-        <esphome-action-menu
-          .items=${menuItems}
-          @menu-action=${(e: CustomEvent) => this._handleMenuAction(e, configured)}
-        ></esphome-action-menu>
+        <!-- External link icon -->
+        <button 
+          class="icon-button"
+          title="Visit device"
+          @click=${() => this._handleVisit(configured)}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="15,3 21,3 21,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="10" y1="14" x2="21" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        
+        <!-- Edit icon -->
+        <button 
+          class="icon-button"
+          title="Edit"
+          @click=${() => this._handleEdit(configured)}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        
+        <!-- Three dots menu -->
+        <button 
+          class="icon-button"
+          title="More actions"
+          @click=${(e: Event) => this._handleMenuToggle(e, configured)}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="1" fill="currentColor"/>
+            <circle cx="19" cy="12" r="1" fill="currentColor"/>
+            <circle cx="5" cy="12" r="1" fill="currentColor"/>
+          </svg>
+        </button>
       </div>
     `;
   }
@@ -336,6 +401,24 @@ class ESPHomeDevicesList extends LitElement {
   private _handleLogs(device: ConfiguredDevice) {
     // Existing logs logic
     fireEvent(this, "show-logs", { device });
+  }
+
+  private _handleVisit(device: ConfiguredDevice) {
+    if (device.ip) {
+      window.open(`http://${device.ip}`, "_blank");
+    }
+  }
+
+  private _handleMenuToggle(e: Event, device: ConfiguredDevice) {
+    e.stopPropagation();
+    // Create a simple context menu or dropdown
+    const menuItems: MenuItem[] = [
+      { label: "View logs", action: "logs" },
+      { label: "Clean build files", action: "clean" },
+      { label: "Delete", action: "delete", destructive: true, divider: true }
+    ];
+    
+    fireEvent(this, "show-device-menu", { device, items: menuItems, event: e });
   }
 
   private _handleMenuAction(e: CustomEvent, device: ConfiguredDevice) {
@@ -498,6 +581,89 @@ class ESPHomeDevicesList extends LitElement {
       gap: 8px;
       align-items: center;
       justify-content: flex-end;
+    }
+    
+    .icon-button {
+      background: none;
+      border: none;
+      padding: 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #5f6368;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .icon-button:hover {
+      background: #f1f3f4;
+      color: #1a73e8;
+    }
+    
+    .action-button {
+      background: none;
+      border: 1px solid #dadce0;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #1a73e8;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    
+    .action-button:hover {
+      background: #f8f9fa;
+      border-color: #1a73e8;
+    }
+    
+    .action-button.primary {
+      background: #1a73e8;
+      color: white;
+      border-color: #1a73e8;
+    }
+    
+    .action-button.primary:hover {
+      background: #1557b0;
+    }
+    
+    .table-layout {
+      margin: 20px 0;
+    }
+    
+    .device-group {
+      margin-bottom: 32px;
+    }
+    
+    .group-header {
+      margin-bottom: 16px;
+    }
+    
+    .group-title {
+      font-size: 16px;
+      font-weight: 500;
+      color: #3c4043;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .device-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    
+    .device-name {
+      font-weight: 500;
+      color: #3c4043;
+    }
+    
+    .device-subtitle {
+      font-size: 12px;
+      color: #5f6368;
     }
     
     @media only screen and (max-width: 768px) {
