@@ -21,6 +21,9 @@ import { MetadataRefresher } from "./device-metadata-refresher";
 import { ESPHomeSearch } from "../components/esphome-search";
 import { fireEvent } from "../util/fire-event";
 
+// Enhanced search component
+import "../../esphome-webui-components/src/search-input.js";
+
 // Enhanced UI Components - import directly from submodule
 import "../../esphome-webui-components/src/esphome-data-table.js";
 import "../../esphome-webui-components/src/esphome-status-indicator.js"; 
@@ -31,10 +34,19 @@ import "../../esphome-webui-components/src/esphome-action-menu.js";
 interface DataTableColumn {
   key: string;
   title: string;
+  label?: string;
   sortable?: boolean;
+  filterable?: boolean;
+  groupable?: boolean;
+  hidden?: boolean;
   width?: string;
+  minWidth?: string;
+  maxWidth?: string;
+  flex?: number;
   align?: "left" | "center" | "right";
+  type?: "numeric" | "icon" | "icon-button" | "overflow-menu";
   template?: (value: any, row: any) => any;
+  extraTemplate?: (value: any, row: any) => any;
 }
 
 interface DataTableRow {
@@ -59,6 +71,8 @@ class ESPHomeDevicesList extends LitElement {
   @state() private _sortBy: string = "name";
   @state() private _sortDirection: "asc" | "desc" = "asc";
   @state() private _groupBy: string = "status";
+  @state() private _collapsedGroups: string[] = [];
+  @state() private _searchValue = "";
   @state() private _filterMenuOpen = false;
   @state() private _sortMenuOpen = false;
   @state() private _groupMenuOpen = false;
@@ -112,28 +126,27 @@ class ESPHomeDevicesList extends LitElement {
             </button>
 
             <!-- Search -->
-            <div class="search-container">
-              <mwc-icon>search</mwc-icon>
-              <input 
-                type="text" 
-                placeholder="Search ESPHome devices"
-                @input=${(e: InputEvent) => {
-                  const target = e.target as HTMLInputElement;
-                  if (this._search) {
-                    this._search.value = target.value;
-                    this.requestUpdate();
-                  }
-                }}
-              />
-            </div>
+            <search-input
+              .value=${this._searchValue}
+              placeholder="Search ESPHome devices"
+              @value-changed=${(e: CustomEvent) => {
+                this._searchValue = e.detail.value;
+                this.requestUpdate();
+              }}
+            ></search-input>
           </div>
 
           <div class="toolbar-right">
             <!-- Group by -->
-            <button class="toolbar-button" @click=${() => this._groupMenuOpen = !this._groupMenuOpen}>
-              Group by
-              <mwc-icon>arrow_drop_down</mwc-icon>
-            </button>
+            <div class="group-selector">
+              <label>Group by:</label>
+              <select .value=${this._groupBy} @change=${(e: Event) => this._setGroupBy((e.target as HTMLSelectElement).value)}>
+                <option value="">None</option>
+                <option value="status">Status</option>
+                <option value="deviceType">Type</option>
+                <option value="name">Name</option>
+              </select>
+            </div>
 
             <!-- Sort by -->
             <button class="toolbar-button" @click=${() => this._sortMenuOpen = !this._sortMenuOpen}>
@@ -222,6 +235,8 @@ class ESPHomeDevicesList extends LitElement {
         key: "name",
         title: "Name",
         sortable: true,
+        filterable: true,
+        groupable: true,
         width: "30%",
         template: (value, row) => html`
           <div class="device-info">
@@ -237,6 +252,8 @@ class ESPHomeDevicesList extends LitElement {
         title: "Status", 
         width: "200px",
         sortable: true,
+        filterable: true,
+        groupable: true,
         template: (_, row) => {
           const status = this._getDeviceStatus(row);
           const hasUpdate = !this._isImportable(row) && (row as ConfiguredDevice).update_available;
@@ -263,6 +280,8 @@ class ESPHomeDevicesList extends LitElement {
         key: "configuration",
         title: "File name",
         width: "30%",
+        sortable: true,
+        filterable: true,
         template: (value, row) => {
           if (this._isImportable(row)) {
             return html`<span class="filename">${row.project_name || "—"}</span>`;
@@ -276,43 +295,31 @@ class ESPHomeDevicesList extends LitElement {
         title: "",
         width: "150px",
         align: "right",
+        type: "overflow-menu",
         template: (_, row) => this._renderTableActions(row)
       }
     ];
 
+    // Combine all devices for unified grouping
+    const allDevices = [...configuredDevices, ...discoveredDevices].map(device => ({
+      ...device,
+      deviceType: this._isImportable(device) ? 'discovered' : 'configured'
+    }));
+
     return html`
       <div class="table-layout">
-        ${configuredDevices.length > 0 ? html`
-          <div class="device-group">
-            <div class="group-header">
-              <mwc-icon class="expand-icon">expand_more</mwc-icon>
-              <h3 class="group-title">Your devices</h3>
-            </div>
-            <esphome-data-table
-              .columns=${columns}
-              .data=${configuredDevices}
-              .filter=${this._search?.value || ""}
-              @row-click=${this._handleTableRowClick}
-              @sorting-changed=${this._handleTableSort}
-            ></esphome-data-table>
-          </div>
-        ` : nothing}
-        
-        ${discoveredDevices.length > 0 ? html`
-          <div class="device-group">
-            <div class="group-header">
-              <mwc-icon class="expand-icon">expand_more</mwc-icon>
-              <h3 class="group-title">Discovered</h3>
-            </div>
-            <esphome-data-table
-              .columns=${columns}
-              .data=${discoveredDevices}
-              .filter=${this._search?.value || ""}
-              @row-click=${this._handleTableRowClick}
-              @sorting-changed=${this._handleTableSort}
-            ></esphome-data-table>
-          </div>
-        ` : nothing}
+        <esphome-data-table
+          .columns=${columns}
+          .data=${allDevices}
+          .filter=${this._searchValue}
+          .groupColumn=${this._groupBy}
+          .initialCollapsedGroups=${this._collapsedGroups}
+          clickable
+          selectable
+          @row-click=${this._handleTableRowClick}
+          @sorting-changed=${this._handleTableSort}
+          @selection-changed=${this._handleSelectionChanged}
+        ></esphome-data-table>
       </div>
     `;
   }
@@ -445,8 +452,10 @@ class ESPHomeDevicesList extends LitElement {
   }
 
   private _handleTableRowClick(e: CustomEvent) {
-    const device = e.detail.row;
-    if (!this._isImportable(device)) {
+    const device = e.detail.id ? 
+      this._devices?.find(d => d.name === e.detail.id) : 
+      e.detail.row;
+    if (device && !this._isImportable(device)) {
       this._handleEdit(e, device as ConfiguredDevice);
     }
   }
@@ -501,8 +510,8 @@ class ESPHomeDevicesList extends LitElement {
       return false;
     }
 
-    if (this._search?.value) {
-      const searchValue = this._search!.value.toLowerCase();
+    if (this._searchValue) {
+      const searchValue = this._searchValue.toLowerCase();
       if (item.name!.toLowerCase().indexOf(searchValue) >= 0) {
         return true;
       }
@@ -530,6 +539,15 @@ class ESPHomeDevicesList extends LitElement {
       return false;
     }
     return true;
+  }
+
+  private _handleSelectionChanged(e: CustomEvent) {
+    console.log('Selection changed:', e.detail.value);
+  }
+
+  private _setGroupBy(groupBy: string) {
+    this._groupBy = groupBy;
+    localStorage.setItem("esphome.devices.groupBy", groupBy);
   }
 
   private _handleShowDiscovered() {
@@ -653,39 +671,37 @@ class ESPHomeDevicesList extends LitElement {
       font-size: 18px;
     }
 
-    .search-container {
+    search-input {
+      flex: 1;
+      max-width: 400px;
+    }
+
+    .group-selector {
       display: flex;
       align-items: center;
       gap: 8px;
-      flex: 1;
-      max-width: 400px;
-      padding: 8px 16px;
-      background: #f1f3f4;
-      border-radius: 4px;
-      transition: all 0.2s ease;
     }
 
-    .search-container:focus-within {
-      background: white;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-    }
-
-    .search-container mwc-icon {
+    .group-selector label {
+      font-size: 14px;
       color: #5f6368;
-      font-size: 20px;
+      white-space: nowrap;
     }
 
-    .search-container input {
-      flex: 1;
-      border: none;
-      background: none;
-      outline: none;
+    .group-selector select {
+      padding: 6px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      background: white;
       font-size: 14px;
       color: #3c4043;
+      cursor: pointer;
     }
 
-    .search-container input::placeholder {
-      color: #5f6368;
+    .group-selector select:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 1px #1a73e8;
     }
 
     .view-toggle {
@@ -960,6 +976,11 @@ class ESPHomeDevicesList extends LitElement {
     const savedSortDirection = localStorage.getItem("esphome.devices.sortDirection") as "asc" | "desc";
     if (savedSortDirection) {
       this._sortDirection = savedSortDirection;
+    }
+    
+    const savedGroupBy = localStorage.getItem("esphome.devices.groupBy");
+    if (savedGroupBy) {
+      this._groupBy = savedGroupBy;
     }
 
     this._devicesUnsub = subscribeDevices(async (devices) => {
