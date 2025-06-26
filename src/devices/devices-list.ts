@@ -70,7 +70,7 @@ class ESPHomeDevicesList extends LitElement {
   @state() private _viewMode: "list" | "grid" = "list";
   @state() private _sortBy: string = "name";
   @state() private _sortDirection: "asc" | "desc" = "asc";
-  @state() private _groupBy: string = "status";
+  @state() private _groupBy: string = "";
   @state() private _collapsedGroups: string[] = [];
   @state() private _searchValue = "";
   @state() private _filterMenuOpen = false;
@@ -141,10 +141,10 @@ class ESPHomeDevicesList extends LitElement {
             <div class="group-selector">
               <label>Group by:</label>
               <select .value=${this._groupBy} @change=${(e: Event) => this._setGroupBy((e.target as HTMLSelectElement).value)}>
-                <option value="">None</option>
-                <option value="status">Status</option>
-                <option value="deviceType">Type</option>
-                <option value="name">Name</option>
+                <option value="" ?selected=${this._groupBy === ""}>None</option>
+                <option value="status" ?selected=${this._groupBy === "status"}>Status</option>
+                <option value="deviceType" ?selected=${this._groupBy === "deviceType"}>Type</option>
+                <option value="name" ?selected=${this._groupBy === "name"}>Name</option>
               </select>
             </div>
 
@@ -312,7 +312,7 @@ class ESPHomeDevicesList extends LitElement {
           .columns=${columns}
           .data=${allDevices}
           .filter=${this._searchValue}
-          .groupColumn=${this._groupBy}
+          .groupColumn=${this._groupBy || undefined}
           .initialCollapsedGroups=${this._collapsedGroups}
           clickable
           selectable
@@ -408,7 +408,13 @@ class ESPHomeDevicesList extends LitElement {
       const importable = device as ImportableDevice;
       return html`
         <div class="table-actions">
-          <button class="action-button primary" @click=${(e: Event) => this._handleAdopt(e, importable)}>
+          <button 
+            class="action-button primary" 
+            @click=${(e: Event) => {
+              e.stopPropagation();
+              this._handleAdopt(e, importable);
+            }}
+          >
             Take control
           </button>
         </div>
@@ -417,13 +423,13 @@ class ESPHomeDevicesList extends LitElement {
 
     const configured = device as ConfiguredDevice;
     const menuItems: MenuItem[] = [
-      { label: "Logs", action: "logs", icon: "M12 2c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h4v1h-7v2h6c1.66 0 3-1.34 3-3V10c0-4.97-4.03-9-9-9z" },
-      { label: "Validate", action: "validate", icon: "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" },
-      { label: "Edit", action: "edit", icon: "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" },
-      { label: "Rename", action: "rename", icon: "M18.41 5.8L17.2 4.59c-.78-.78-2.05-.78-2.83 0l-2.68 2.68L3 15.96V20h4.04l8.74-8.74 2.63-2.63c.79-.78.79-2.05 0-2.83zM6.21 18H5v-1.21l8.66-8.66 1.21 1.21L6.21 18zM11 20l4-4h6v4H11z" },
-      { label: "Change device icon", action: "change-icon", icon: "M12 2l.01 10.55c-.59-.34-1.27-.55-2-.55C7.79 12 6 13.79 6 16s1.79 4 4.01 4S14 18.21 14 16V4h4V2h-6z" },
-      { label: "Download file", action: "download", icon: "M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" },
-      { label: "Delete", action: "delete", icon: "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z", destructive: true, divider: true }
+      { label: "Logs", action: "logs", icon: "description" },
+      { label: "Validate", action: "validate", icon: "check_circle" },
+      { label: "Edit", action: "edit", icon: "edit" },
+      { label: "Rename", action: "rename", icon: "drive_file_rename_outline" },
+      { label: "Change device icon", action: "change-icon", icon: "image" },
+      { label: "Download file", action: "download", icon: "download" },
+      { label: "Delete", action: "delete", icon: "delete", destructive: true, divider: true }
     ];
     
     return html`
@@ -432,20 +438,29 @@ class ESPHomeDevicesList extends LitElement {
         <mwc-icon-button 
           icon="open_in_new"
           title="Visit device"
-          @click=${(e: Event) => this._handleVisit(e, configured)}
+          @click=${(e: Event) => {
+            e.stopPropagation();
+            this._handleVisit(e, configured);
+          }}
         ></mwc-icon-button>
         
         <!-- Edit icon -->
         <mwc-icon-button 
           icon="edit"
           title="Edit"
-          @click=${(e: Event) => this._handleEdit(e, configured)}
+          @click=${(e: Event) => {
+            e.stopPropagation();
+            this._handleEdit(e, configured);
+          }}
         ></mwc-icon-button>
         
         <!-- Three dots menu -->
         <esphome-action-menu
           .items=${menuItems}
-          @action=${(e: CustomEvent) => this._handleMenuAction(e, configured)}
+          @action=${(e: CustomEvent) => {
+            e.stopPropagation();
+            this._handleMenuAction(e, configured);
+          }}
         ></esphome-action-menu>
       </div>
     `;
