@@ -112,18 +112,39 @@ class ESPHomeDevicesList extends LitElement {
             <mwc-icon>add</mwc-icon>
             Create device
           </button>
-          <mwc-icon-button icon="more_vert"></mwc-icon-button>
+          <mwc-icon-button 
+            icon="more_vert"
+            @click=${this._handleHeaderMenuClick}
+            title="More options"
+          ></mwc-icon-button>
         </div>
 
         <!-- Toolbar -->
         <div class="toolbar">
           <div class="toolbar-left">
             <!-- Filters button -->
-            <button class="toolbar-button" @click=${() => this._filterMenuOpen = !this._filterMenuOpen}>
-              <mwc-icon>filter_alt</mwc-icon>
-              Filters
-              <mwc-icon>arrow_drop_down</mwc-icon>
-            </button>
+            <div class="filter-container">
+              <button 
+                class="toolbar-button" 
+                @click=${() => this._filterMenuOpen = !this._filterMenuOpen}
+              >
+                <mwc-icon>filter_alt</mwc-icon>
+                Filters
+                <mwc-icon>arrow_drop_down</mwc-icon>
+              </button>
+              ${this._filterMenuOpen ? html`
+                <div class="dropdown-menu filter-menu">
+                  <label class="filter-item">
+                    <input 
+                      type="checkbox" 
+                      .checked=${this.showDiscoveredDevices}
+                      @change=${() => this._handleShowDiscovered()}
+                    />
+                    Show discovered devices
+                  </label>
+                </div>
+              ` : nothing}
+            </div>
 
             <!-- Search -->
             <search-input
@@ -140,21 +161,21 @@ class ESPHomeDevicesList extends LitElement {
             <!-- Group by -->
             <div class="group-selector">
               <label>Group by:</label>
-              <select .value=${this._groupBy} @change=${(e: Event) => this._setGroupBy((e.target as HTMLSelectElement).value)}>
-                <option value="" ?selected=${this._groupBy === ""}>None</option>
-                <option value="status" ?selected=${this._groupBy === "status"}>Status</option>
-                <option value="deviceType" ?selected=${this._groupBy === "deviceType"}>Type</option>
-                <option value="name" ?selected=${this._groupBy === "name"}>Name</option>
+              <select @change=${(e: Event) => this._setGroupBy((e.target as HTMLSelectElement).value)}>
+                <option value="" .selected=${this._groupBy === ""}>None</option>
+                <option value="status" .selected=${this._groupBy === "status"}>Status</option>
+                <option value="deviceType" .selected=${this._groupBy === "deviceType"}>Type</option>
+                <option value="name" .selected=${this._groupBy === "name"}>Name</option>
               </select>
             </div>
 
             <!-- Sort by -->
             <div class="sort-selector">
               <label>Sort by:</label>
-              <select .value=${this._sortBy} @change=${(e: Event) => this._handleSortChange(e)}>
-                <option value="name" ?selected=${this._sortBy === "name"}>Name</option>
-                <option value="status" ?selected=${this._sortBy === "status"}>Status</option>
-                <option value="configuration" ?selected=${this._sortBy === "configuration"}>File name</option>
+              <select @change=${(e: Event) => this._handleSortChange(e)}>
+                <option value="name" .selected=${this._sortBy === "name"}>Name</option>
+                <option value="status" .selected=${this._sortBy === "status"}>Status</option>
+                <option value="configuration" .selected=${this._sortBy === "configuration"}>File name</option>
               </select>
               <button 
                 class="sort-direction-btn"
@@ -318,7 +339,8 @@ class ESPHomeDevicesList extends LitElement {
     // Combine all devices for unified grouping
     const allDevices = [...configuredDevices, ...discoveredDevices].map(device => ({
       ...device,
-      deviceType: this._isImportable(device) ? 'discovered' : 'configured'
+      deviceType: this._isImportable(device) ? 'discovered' : 'configured',
+      id: device.name // Ensure ID field exists
     }));
 
     return html`
@@ -331,7 +353,7 @@ class ESPHomeDevicesList extends LitElement {
           .initialCollapsedGroups=${this._collapsedGroups}
           .sortColumn=${this._sortBy}
           .sortDirection=${this._sortDirection}
-          .id="name"
+          id="name"
           clickable
           selectable
           @row-click=${this._handleTableRowClick}
@@ -456,6 +478,7 @@ class ESPHomeDevicesList extends LitElement {
         <mwc-icon-button 
           icon="open_in_new"
           title="Visit device"
+          ?disabled=${!configured.ip}
           @click=${(e: Event) => {
             e.stopPropagation();
             this._handleVisit(e, configured);
@@ -485,11 +508,9 @@ class ESPHomeDevicesList extends LitElement {
   }
 
   private _handleTableRowClick(e: CustomEvent) {
-    console.log('Row clicked:', e.detail);
     const deviceName = e.detail.id;
     const device = this._devices?.find(d => d.name === deviceName);
     if (device && !this._isImportable(device)) {
-      console.log('Editing device:', device.name);
       this._handleEdit(e, device as ConfiguredDevice);
     }
   }
@@ -515,7 +536,6 @@ class ESPHomeDevicesList extends LitElement {
 
   private _handleEdit(e: Event, device: ConfiguredDevice) {
     e.stopPropagation();
-    console.log('Edit event fired for:', device.name);
     fireEvent(this, "edit-device", { device });
   }
 
@@ -538,6 +558,18 @@ class ESPHomeDevicesList extends LitElement {
         break;
       case "logs":
         this._handleLogs(device);
+        break;
+      case "validate":
+        fireEvent(this, "validate-device", { device });
+        break;
+      case "rename":
+        fireEvent(this, "rename-device", { device });
+        break;
+      case "change-icon":
+        fireEvent(this, "change-device-icon", { device });
+        break;
+      case "download":
+        fireEvent(this, "download-device-config", { device });
         break;
       case "delete":
         fireEvent(this, "delete-device", { device });
@@ -585,8 +617,7 @@ class ESPHomeDevicesList extends LitElement {
 
   private _handleSelectionChanged(e: CustomEvent) {
     const selectedNames = e.detail.value;
-    console.log('Selection changed:', selectedNames);
-    // You can add logic here to handle selected devices
+    // Handle selected devices
   }
   
   private _handleSortChange(e: Event) {
@@ -604,13 +635,17 @@ class ESPHomeDevicesList extends LitElement {
   
   private _handleSettingsClick() {
     // Open settings dialog or navigate to settings page
-    console.log('Settings clicked');
-    // You can implement settings functionality here
+    fireEvent(this, "show-settings", {});
   }
 
   private _setGroupBy(groupBy: string) {
     this._groupBy = groupBy;
     localStorage.setItem("esphome.devices.groupBy", groupBy);
+  }
+  
+  private _handleHeaderMenuClick() {
+    // Handle header menu click
+    fireEvent(this, "show-header-menu", {});
   }
 
   private _handleShowDiscovered() {
@@ -823,6 +858,41 @@ class ESPHomeDevicesList extends LitElement {
 
     .sort-direction-btn mwc-icon {
       font-size: 18px;
+    }
+
+    /* Filter dropdown */
+    .filter-container {
+      position: relative;
+    }
+
+    .dropdown-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 4px;
+      background: white;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 8px 0;
+      min-width: 200px;
+      z-index: 1000;
+    }
+
+    .filter-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    .filter-item:hover {
+      background-color: #f5f5f5;
+    }
+
+    .filter-item input[type="checkbox"] {
+      margin-right: 8px;
     }
 
     .view-toggle {
