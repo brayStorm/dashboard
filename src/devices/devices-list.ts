@@ -149,10 +149,21 @@ class ESPHomeDevicesList extends LitElement {
             </div>
 
             <!-- Sort by -->
-            <button class="toolbar-button" @click=${() => this._sortMenuOpen = !this._sortMenuOpen}>
-              Sort by Name
-              <mwc-icon>arrow_drop_down</mwc-icon>
-            </button>
+            <div class="sort-selector">
+              <label>Sort by:</label>
+              <select .value=${this._sortBy} @change=${(e: Event) => this._handleSortChange(e)}>
+                <option value="name" ?selected=${this._sortBy === "name"}>Name</option>
+                <option value="status" ?selected=${this._sortBy === "status"}>Status</option>
+                <option value="configuration" ?selected=${this._sortBy === "configuration"}>File name</option>
+              </select>
+              <button 
+                class="sort-direction-btn"
+                @click=${() => this._toggleSortDirection()}
+                title="Toggle sort direction"
+              >
+                <mwc-icon>${this._sortDirection === "asc" ? "arrow_upward" : "arrow_downward"}</mwc-icon>
+              </button>
+            </div>
 
             <!-- View toggle -->
             <div class="view-toggle">
@@ -173,7 +184,11 @@ class ESPHomeDevicesList extends LitElement {
             </div>
 
             <!-- Settings button -->
-            <mwc-icon-button icon="settings"></mwc-icon-button>
+            <mwc-icon-button 
+              icon="settings"
+              @click=${this._handleSettingsClick}
+              title="Settings"
+            ></mwc-icon-button>
           </div>
         </div>
 
@@ -314,6 +329,9 @@ class ESPHomeDevicesList extends LitElement {
           .filter=${this._searchValue}
           .groupColumn=${this._groupBy || undefined}
           .initialCollapsedGroups=${this._collapsedGroups}
+          .sortColumn=${this._sortBy}
+          .sortDirection=${this._sortDirection}
+          .id="name"
           clickable
           selectable
           @row-click=${this._handleTableRowClick}
@@ -467,19 +485,27 @@ class ESPHomeDevicesList extends LitElement {
   }
 
   private _handleTableRowClick(e: CustomEvent) {
-    const device = e.detail.id ? 
-      this._devices?.find(d => d.name === e.detail.id) : 
-      e.detail.row;
+    console.log('Row clicked:', e.detail);
+    const deviceName = e.detail.id;
+    const device = this._devices?.find(d => d.name === deviceName);
     if (device && !this._isImportable(device)) {
+      console.log('Editing device:', device.name);
       this._handleEdit(e, device as ConfiguredDevice);
     }
   }
 
   private _handleTableSort(e: CustomEvent) {
-    this._sortBy = e.detail.column;
-    this._sortDirection = e.detail.direction;
+    if (e.detail.column) {
+      this._sortBy = e.detail.column;
+      this._sortDirection = e.detail.direction || "asc";
+    } else {
+      // Clear sorting
+      this._sortBy = "";
+      this._sortDirection = "asc";
+    }
     localStorage.setItem("esphome.devices.sortBy", this._sortBy);
     localStorage.setItem("esphome.devices.sortDirection", this._sortDirection);
+    this.requestUpdate();
   }
 
   private _handleAdopt(e: Event, device: ImportableDevice) {
@@ -489,6 +515,7 @@ class ESPHomeDevicesList extends LitElement {
 
   private _handleEdit(e: Event, device: ConfiguredDevice) {
     e.stopPropagation();
+    console.log('Edit event fired for:', device.name);
     fireEvent(this, "edit-device", { device });
   }
 
@@ -557,7 +584,28 @@ class ESPHomeDevicesList extends LitElement {
   }
 
   private _handleSelectionChanged(e: CustomEvent) {
-    console.log('Selection changed:', e.detail.value);
+    const selectedNames = e.detail.value;
+    console.log('Selection changed:', selectedNames);
+    // You can add logic here to handle selected devices
+  }
+  
+  private _handleSortChange(e: Event) {
+    const select = e.target as HTMLSelectElement;
+    this._sortBy = select.value;
+    localStorage.setItem("esphome.devices.sortBy", this._sortBy);
+    this.requestUpdate();
+  }
+  
+  private _toggleSortDirection() {
+    this._sortDirection = this._sortDirection === "asc" ? "desc" : "asc";
+    localStorage.setItem("esphome.devices.sortDirection", this._sortDirection);
+    this.requestUpdate();
+  }
+  
+  private _handleSettingsClick() {
+    // Open settings dialog or navigate to settings page
+    console.log('Settings clicked');
+    // You can implement settings functionality here
   }
 
   private _setGroupBy(groupBy: string) {
@@ -717,6 +765,64 @@ class ESPHomeDevicesList extends LitElement {
       outline: none;
       border-color: #1a73e8;
       box-shadow: 0 0 0 1px #1a73e8;
+    }
+
+    .sort-selector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sort-selector label {
+      font-size: 14px;
+      color: #5f6368;
+      white-space: nowrap;
+    }
+
+    .sort-selector select {
+      padding: 6px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      background: white;
+      font-size: 14px;
+      color: #3c4043;
+      cursor: pointer;
+    }
+
+    .sort-selector select:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 1px #1a73e8;
+    }
+
+    .sort-direction-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      background: white;
+      cursor: pointer;
+      color: #5f6368;
+      transition: all 0.2s ease;
+    }
+
+    .sort-direction-btn:hover {
+      background: #f8f9fa;
+      border-color: #1a73e8;
+    }
+
+    .sort-direction-btn:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 1px #1a73e8;
+    }
+
+    .sort-direction-btn mwc-icon {
+      font-size: 18px;
     }
 
     .view-toggle {
