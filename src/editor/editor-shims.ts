@@ -1,4 +1,6 @@
-import * as monaco from "monaco-editor";
+// Use API-only import here - it ensures monaco.languages is available synchronously
+// The full monaco-editor import in esphome-editor.ts provides context menu support
+import * as monaco from "monaco-editor/esm/vs/editor/editor.api";
 import { ESPHomeSchema } from "./esphome-schema";
 
 let schema_version = "dev";

@@ -1,4 +1,5 @@
-import * as monaco from "monaco-editor";
+// Use API-only import here - it ensures monaco.languages is available synchronously
+import * as monaco from "monaco-editor/esm/vs/editor/editor.api";
 import { CompletionsHandler } from "./completions-handler";
 import { DefinitionHandler } from "./definition-handler";
 import { fromMonacoPosition } from "./editor-shims";
