@@ -1,4 +1,5 @@
 import { getCookie } from "../util/cookie";
+import { buildWebSocketUrl } from "../util/websocket-url";
 
 export class APIError extends Error {
   constructor(
@@ -28,7 +29,20 @@ const fetchApiBase = async (
   }
   const resp = await fetch(path, options);
   if (!resp.ok) {
-    throw new APIError(`Request not successful (${resp.status})`, resp.status);
+    let errMessage = `Request not successful (${resp.status})`;
+    try {
+      const contentType = resp.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const json = await resp.json();
+        errMessage += `: ${json.error}`;
+      } else {
+        const text = await resp.text();
+        if (text) errMessage += `: ${text}`;
+      }
+    } catch {
+      // Ignore parsing errors, use generic message
+    }
+    throw new APIError(errMessage, resp.status);
   }
   return resp;
 };
@@ -59,15 +73,15 @@ export const streamLogs = (
   lineReceived?: (line: string) => void,
   abortController?: AbortController,
 ) => {
-  const url = new URL(`./${path}`, location.href);
-  url.protocol = url.protocol === "http:" ? "ws:" : "wss:";
-  const socket = new WebSocket(url.toString());
+  const socket = new WebSocket(buildWebSocketUrl(path));
 
   if (abortController) {
     abortController.signal.addEventListener("abort", () => socket.close());
   }
 
   return new Promise((resolve, reject) => {
+    let done = false;
+
     socket.addEventListener("message", (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
@@ -81,6 +95,8 @@ export const streamLogs = (
         return;
       }
 
+      done = true;
+      socket.close();
       if (data.code === 0) {
         resolve(undefined);
       } else {
@@ -102,7 +118,9 @@ export const streamLogs = (
     });
 
     socket.addEventListener("close", () => {
-      reject(new Error("Unexpected socket closure"));
+      if (!done) {
+        reject(new Error("Unexpected socket closure"));
+      }
     });
   });
 };

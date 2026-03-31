@@ -12,6 +12,7 @@ import "../components/esphome-svg-icon";
 import "@polymer/paper-tooltip/paper-tooltip.js";
 import { openCleanMQTTDialog } from "../clean-mqtt";
 import { openCleanDialog } from "../clean";
+import { openCleanAllDialog } from "../clean-all";
 import { openValidateDialog } from "../validate";
 import { openInstallChooseDialog } from "../install-choose";
 import { openLogsTargetDialog } from "../logs-target";
@@ -117,7 +118,7 @@ class ESPHomeConfiguredDeviceCard extends LitElement {
                 </div>
               `
             : ""}
-          ${this.device.loaded_integrations?.includes("web_server")
+          ${this.device.web_port != null
             ? html`
                 <a
                   href=${`http://${this.device.address}${
@@ -176,6 +177,13 @@ class ESPHomeConfiguredDeviceCard extends LitElement {
             </mwc-list-item>
             <mwc-list-item graphic="icon">
               Clean Build Files
+              <esphome-svg-icon
+                slot="graphic"
+                .path=${mdiBroom}
+              ></esphome-svg-icon>
+            </mwc-list-item>
+            <mwc-list-item graphic="icon">
+              Clean All Files
               <esphome-svg-icon
                 slot="graphic"
                 .path=${mdiBroom}
@@ -272,6 +280,9 @@ class ESPHomeConfiguredDeviceCard extends LitElement {
         openCleanDialog(this.device.configuration);
         break;
       case 6:
+        openCleanAllDialog();
+        break;
+      case 7:
         const type: DownloadType = {
           title: "ELF File",
           description: "ELF File",
@@ -285,14 +296,14 @@ class ESPHomeConfiguredDeviceCard extends LitElement {
         link.click();
         link.remove();
         break;
-      case 7:
+      case 8:
         openDeleteDeviceDialog(
           this.device.name,
           this.device.configuration,
           () => fireEvent(this, "deleted"),
         );
         break;
-      case 7:
+      case 9:
         openCleanMQTTDialog(this.device.configuration);
         break;
     }
