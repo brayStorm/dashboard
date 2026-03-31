@@ -36,6 +36,18 @@ class FixManifestPlugin {
           console.error("FixManifestPlugin error:", e);
         }
 
+        // Copy codicon font for Monaco editor icons
+        const codiconSrc = path.resolve(
+          __dirname,
+          "node_modules/monaco-editor/min/vs/base/browser/ui/codicons/codicon/codicon.ttf",
+        );
+        const codiconDest = path.resolve(outputPath, "codicon.ttf");
+        try {
+          fs.copyFileSync(codiconSrc, codiconDest);
+        } catch (e) {
+          console.error("Failed to copy codicon font:", e);
+        }
+
         // Copy Monaco editor worker to the expected location
         const monacoWorkerSrc = path.resolve(
           __dirname,

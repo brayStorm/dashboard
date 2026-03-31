@@ -22,8 +22,14 @@ if (!document.getElementById("monaco-editor-css")) {
   const style = document.createElement("style");
   style.id = "monaco-editor-css";
   // Add context menu z-index fix to ensure it appears above everything
+  // Fix codicon font URL - the CSS references a relative path that doesn't resolve
+  // when injected as a style tag, so rewrite it to an absolute path
+  const fixedCss = monacoCss.replace(
+    /url\([^)]*codicon\.ttf[^)]*\)/g,
+    "url(/static/js/esphome/codicon.ttf)"
+  );
   style.textContent =
-    monacoCss +
+    fixedCss +
     `
     .monaco-menu-container {
       z-index: 10000 !important;
